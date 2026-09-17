@@ -1,18 +1,7 @@
-mod analytics;
-mod api;
-mod bitcoin;
-mod blocks;
-mod config;
-mod database;
-mod events;
-mod graph;
-mod mempool;
-mod rpc;
-mod scripts;
-mod transactions;
-mod utxos;
-
-use config::AppConfig;
+use bitcoin_utxo_backend::api;
+use bitcoin_utxo_backend::config::AppConfig;
+use bitcoin_utxo_backend::database;
+use bitcoin_utxo_backend::rpc;
 use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
@@ -57,18 +46,31 @@ async fn main() -> anyhow::Result<()> {
     })?;
     tracing::info!("Database schema up-to-date.");
 
-    // 4. Configure CORS layer for frontend communication
+    // 4. Initialize Bitcoin Core RPC client
+    let rpc_client = std::sync::Arc::new(rpc::client::BitcoinRpcClient::new(
+        config.bitcoin_rpc_url.clone(),
+        config.bitcoin_rpc_user.clone(),
+        config.bitcoin_rpc_password.clone(),
+    ));
+
+    let state = api::AppState {
+        pool: pool.clone(),
+        rpc: rpc_client,
+        config: config.clone(),
+    };
+
+    // 5. Configure CORS layer for frontend communication
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
 
-    // 5. Construct API router with middleware
-    let app = api::create_router(pool)
+    // 6. Construct API router with middleware
+    let app = api::create_router(state)
         .layer(TraceLayer::new_for_http())
         .layer(cors);
 
-    // 6. Bind and serve HTTP server
+    // 7. Bind and serve HTTP server
     let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;
     tracing::info!("Bitcoin UTXO Visualizer API listening on http://{}", addr);
 
