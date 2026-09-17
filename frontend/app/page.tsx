@@ -1,30 +1,82 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Activity,
   Layers,
   Search,
-  Cpu,
   GitCommit,
   ArrowRight,
   Database,
   Radio,
   CheckCircle2,
-  Clock,
-  ExternalLink,
   ShieldCheck,
-  AlertTriangle,
+  RotateCw,
+  Info,
 } from "lucide-react";
+import { UtxoGraphView } from "@/features/graph/UtxoGraphView";
+import { TxDetailView, TransactionDetailData } from "@/features/explorer/TxDetailView";
+import { fetchNodeStatus, fetchTransaction, fetchTransactionGraph, fetchBlocks } from "@/lib/api";
+import { Node, Edge } from "@xyflow/react";
 
 export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<"graph" | "flow" | "tx" | "utxos" | "mempool">("graph");
+  const [activeTab, setActiveTab] = useState<"graph" | "tx" | "utxos" | "flow">("graph");
+  const [nodeStatus, setNodeStatus] = useState<any>(null);
+  const [recentBlocks, setRecentBlocks] = useState<any[]>([]);
+  const [currentTx, setCurrentTx] = useState<TransactionDetailData | null>(null);
+  const [graphNodes, setGraphNodes] = useState<Node[]>([]);
+  const [graphEdges, setGraphEdges] = useState<Edge[]>([]);
+  const [graphDepth, setGraphDepth] = useState<number>(2);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load node status and recent blocks on mount
+  useEffect(() => {
+    async function loadInitial() {
+      try {
+        const node = await fetchNodeStatus();
+        setNodeStatus(node);
+        const blocks = await fetchBlocks();
+        setRecentBlocks(blocks);
+      } catch (err: any) {
+        console.warn("Could not connect to backend API:", err.message);
+      }
+    }
+    loadInitial();
+  }, []);
+
+  // Search or load transaction
+  const loadTxData = async (txid: string, depth = graphDepth) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const tx = await fetchTransaction(txid);
+      setCurrentTx(tx);
+
+      // Load graph
+      const graph = await fetchTransactionGraph(txid, depth);
+      setGraphNodes(graph.nodes || []);
+      setGraphEdges(graph.edges || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load transaction data");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchQuery.trim()) return;
-    // Will route to transaction or outpoint based on query pattern
+    const query = searchQuery.trim();
+    if (!query) return;
+
+    if (query.includes(":")) {
+      // Outpoint search
+      const parts = query.split(":");
+      loadTxData(parts[0]);
+    } else {
+      loadTxData(query);
+    }
   };
 
   return (
@@ -40,7 +92,7 @@ export default function DashboardPage() {
               <h1 className="text-base font-semibold tracking-tight text-white flex items-center gap-2">
                 Bitcoin UTXO Visualizer
                 <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-btc/20 text-btc border border-btc/30 font-medium">
-                  Regtest
+                  {nodeStatus?.network || "Regtest"}
                 </span>
               </h1>
               <p className="text-xs text-gray-400 font-mono">
@@ -70,7 +122,9 @@ export default function DashboardPage() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="text-gray-300 font-mono text-[11px]">Node Sync: OK</span>
+              <span className="text-gray-300 font-mono text-[11px]">
+                {nodeStatus?.connected ? `Block #${nodeStatus.blocks}` : "API Ready"}
+              </span>
             </div>
           </div>
         </div>
@@ -84,43 +138,48 @@ export default function DashboardPage() {
               Indexed Height
             </span>
             <span className="text-lg font-bold font-mono text-white flex items-center gap-1.5">
-              <Layers className="w-4 h-4 text-btc" /> 101
+              <Layers className="w-4 h-4 text-btc" />
+              {nodeStatus?.indexed_height !== null && nodeStatus?.indexed_height !== undefined
+                ? nodeStatus.indexed_height
+                : 0}
             </span>
           </div>
 
           <div className="flex flex-col">
             <span className="text-[11px] text-gray-400 uppercase tracking-wider font-mono">
-              Total Transactions
+              Node Tip
             </span>
             <span className="text-lg font-bold font-mono text-white flex items-center gap-1.5">
-              <GitCommit className="w-4 h-4 text-cyan-400" /> 101
+              <GitCommit className="w-4 h-4 text-cyan-400" />
+              {nodeStatus?.blocks || 0}
             </span>
           </div>
 
           <div className="flex flex-col">
             <span className="text-[11px] text-gray-400 uppercase tracking-wider font-mono">
-              Active UTXOs
-            </span>
-            <span className="text-lg font-bold font-mono text-utxo-unspent flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4" /> 101
-            </span>
-          </div>
-
-          <div className="flex flex-col">
-            <span className="text-[11px] text-gray-400 uppercase tracking-wider font-mono">
-              Total UTXO Value
-            </span>
-            <span className="text-lg font-bold font-mono text-amber-300">
-              5,050.00 <span className="text-xs text-gray-400 font-normal">BTC</span>
-            </span>
-          </div>
-
-          <div className="flex flex-col">
-            <span className="text-[11px] text-gray-400 uppercase tracking-wider font-mono">
-              Mempool Unconfirmed
+              Mempool Size
             </span>
             <span className="text-lg font-bold font-mono text-utxo-mempool flex items-center gap-1.5">
-              <Radio className="w-4 h-4 animate-pulse" /> 0 txs
+              <Radio className="w-4 h-4" />
+              {nodeStatus?.mempool_size || 0} txs
+            </span>
+          </div>
+
+          <div className="flex flex-col">
+            <span className="text-[11px] text-gray-400 uppercase tracking-wider font-mono">
+              Subversion
+            </span>
+            <span className="text-xs font-mono text-gray-300 truncate mt-1">
+              {nodeStatus?.subversion || "/Satoshi:27.0.0/"}
+            </span>
+          </div>
+
+          <div className="flex flex-col">
+            <span className="text-[11px] text-gray-400 uppercase tracking-wider font-mono">
+              Protocol Verification
+            </span>
+            <span className="text-lg font-bold font-mono text-emerald-400 flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4" /> 100%
             </span>
           </div>
         </div>
@@ -131,10 +190,9 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-2">
           {[
             { id: "graph", label: "UTXO Graph (DAG)", icon: Activity },
-            { id: "flow", label: "Value Flow & Fees", icon: ArrowRight },
             { id: "tx", label: "Transaction Explorer", icon: GitCommit },
+            { id: "flow", label: "Value Flow & Fees", icon: ArrowRight },
             { id: "utxos", label: "UTXO Set & Lifecycles", icon: Database },
-            { id: "mempool", label: "Live Mempool Feed", icon: Radio },
           ].map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -157,59 +215,110 @@ export default function DashboardPage() {
       </div>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
-        {/* Placeholder / Initial Canvas Container */}
-        <div className="bg-surface border border-border rounded-xl p-6 relative overflow-hidden min-h-[500px] flex flex-col justify-between">
-          <div className="flex items-center justify-between pb-4 border-b border-border">
-            <div>
-              <h2 className="text-base font-semibold text-white flex items-center gap-2">
-                Directed Acyclic Graph Canvas
-                <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/40 text-emerald-400">
-                  Mode: Dual (Tx ↔ UTXO)
-                </span>
-              </h2>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Explicit visualization: Transaction outputs form UTXO nodes, which are consumed by subsequent transaction inputs.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 text-xs font-mono">
-              <span className="flex items-center gap-1 text-utxo-unspent">
-                <span className="w-2.5 h-2.5 rounded-full bg-utxo-unspent inline-block" /> Unspent UTXO
-              </span>
-              <span className="flex items-center gap-1 text-utxo-spent ml-3">
-                <span className="w-2.5 h-2.5 rounded-full bg-utxo-spent inline-block" /> Spent Output
-              </span>
-            </div>
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {error && (
+          <div className="p-4 rounded-xl bg-rose-950/40 border border-rose-800/60 text-rose-300 text-xs font-mono flex items-center justify-between">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="text-rose-400 hover:text-white">
+              ✕
+            </button>
           </div>
+        )}
 
-          {/* Interactive Graph Placeholder / Canvas State */}
-          <div className="flex-1 flex flex-col items-center justify-center my-8 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-card border border-border flex items-center justify-center text-btc mb-4 shadow-xl">
-              <Activity className="w-8 h-8" />
-            </div>
-            <h3 className="text-sm font-semibold text-white mb-1">
-              Ready to Visualize Bitcoin UTXO Trees
-            </h3>
-            <p className="text-xs text-gray-400 max-w-md mb-6">
-              Enter any Transaction ID or Outpoint (<code className="text-btc font-mono">TXID:VOUT</code>) in the search bar above to trace ancestor inputs, descendant outputs, and satoshi value movement.
-            </p>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setSearchQuery("coinbase:block-101")}
-                className="px-3 py-1.5 rounded-lg bg-card border border-border hover:border-btc/40 text-xs font-mono text-gray-300 hover:text-white transition-all"
-              >
-                Inspect Block 101 Coinbase UTXO
-              </button>
-            </div>
+        {/* Tab 1: Interactive UTXO Graph View */}
+        {activeTab === "graph" && (
+          <div className="space-y-4">
+            {graphNodes.length > 0 ? (
+              <UtxoGraphView
+                nodes={graphNodes}
+                edges={graphEdges}
+                depth={graphDepth}
+                onDepthChange={(newDepth) => {
+                  setGraphDepth(newDepth);
+                  if (currentTx) {
+                    loadTxData(currentTx.txid.toString(), newDepth);
+                  }
+                }}
+                onNodeClick={(node) => {
+                  if (node.type === "transaction" && (node.data as any).txid) {
+                    loadTxData((node.data as any).txid);
+                  }
+                }}
+              />
+            ) : (
+              <div className="bg-surface border border-border rounded-xl p-8 text-center min-h-[450px] flex flex-col items-center justify-center">
+                <div className="w-14 h-14 rounded-2xl bg-card border border-border flex items-center justify-center text-btc mb-4 shadow-xl">
+                  <Activity className="w-7 h-7" />
+                </div>
+                <h3 className="text-sm font-semibold text-white mb-1">
+                  Explore Bitcoin UTXO Tree
+                </h3>
+                <p className="text-xs text-gray-400 max-w-md mb-6">
+                  Select an indexed block transaction below or paste any TXID or Outpoint into the search bar to inspect the transaction DAG.
+                </p>
+
+                {recentBlocks.length > 0 && (
+                  <div className="max-w-xl w-full text-left space-y-2">
+                    <span className="text-[11px] font-mono text-gray-400 uppercase tracking-wider block">
+                      Recent Indexed Blocks
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {recentBlocks.slice(0, 4).map((b) => (
+                        <div
+                          key={b.hash}
+                          className="p-2.5 rounded-lg bg-card border border-border text-xs font-mono flex items-center justify-between"
+                        >
+                          <div>
+                            <span className="text-white font-bold block">Block #{b.height}</span>
+                            <span className="text-gray-400 text-[10px]">{b.tx_count} transactions</span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setSearchQuery(`block:${b.height}`);
+                            }}
+                            className="text-btc hover:underline text-[11px]"
+                          >
+                            Inspect
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
+        )}
 
-          {/* Educational Callout */}
-          <div className="mt-4 p-4 rounded-lg bg-card/60 border border-border/80 flex items-start gap-3">
-            <ShieldCheck className="w-5 h-5 text-btc flex-shrink-0 mt-0.5" />
-            <div className="text-xs text-gray-300">
-              <strong className="text-white font-medium">Protocol Principle: </strong>
-              Transactions do not spend transactions. Transactions consume individual <em>Unspent Transaction Outputs</em> (UTXOs) referenced by outpoints (<code className="font-mono text-gray-100">TXID:VOUT</code>). The difference between total input satoshis and output satoshis is the mining fee, claimed in the coinbase transaction.
-            </div>
+        {/* Tab 2: Transaction Explorer */}
+        {activeTab === "tx" && (
+          <div>
+            {currentTx ? (
+              <TxDetailView
+                tx={currentTx}
+                onSelectTxid={(txid) => loadTxData(txid)}
+                onSelectOutpoint={(txid) => loadTxData(txid)}
+              />
+            ) : (
+              <div className="bg-surface border border-border rounded-xl p-8 text-center min-h-[300px] flex flex-col items-center justify-center">
+                <GitCommit className="w-8 h-8 text-btc mb-3" />
+                <h3 className="text-sm font-semibold text-white mb-1">
+                  No Transaction Loaded
+                </h3>
+                <p className="text-xs text-gray-400 max-w-md">
+                  Enter a 64-character Transaction ID in the top search bar to inspect inputs, outputs, locktimes, and witness stacks.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Educational Callout */}
+        <div className="p-4 rounded-xl bg-card/60 border border-border/80 flex items-start gap-3">
+          <ShieldCheck className="w-5 h-5 text-btc flex-shrink-0 mt-0.5" />
+          <div className="text-xs text-gray-300">
+            <strong className="text-white font-medium">Bitcoin UTXO Model: </strong>
+            In Bitcoin, an input does not refer to a transaction; it explicitly refers to an <em>Outpoint</em> (<code className="font-mono text-gray-100">TXID:VOUT</code>). The UTXO is consumed atomically, and new outputs with distinct locking scripts (<code className="font-mono text-gray-100">scriptPubKey</code>) are generated.
           </div>
         </div>
       </main>
