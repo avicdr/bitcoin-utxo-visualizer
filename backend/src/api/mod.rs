@@ -1,6 +1,8 @@
+pub mod blocks;
 pub mod error;
 pub mod health;
 pub mod node;
+pub mod transactions;
 
 use crate::config::AppConfig;
 use crate::rpc::client::BitcoinRpcClient;
@@ -27,6 +29,12 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/api/node",
             get(node::get_node_status).with_state(node_state),
+        )
+        .route("/api/blocks", get(blocks::list_blocks))
+        .route("/api/blocks/:height", get(blocks::get_block_by_height))
+        .route(
+            "/api/transactions/:txid",
+            get(transactions::get_transaction),
         )
         .with_state(state.pool)
 }

@@ -1,1 +1,1 @@
-// Block synchronization and indexing
+pub mod indexer;
