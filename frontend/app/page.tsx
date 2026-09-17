@@ -16,7 +16,16 @@ import {
 } from "lucide-react";
 import { UtxoGraphView } from "@/features/graph/UtxoGraphView";
 import { TxDetailView, TransactionDetailData } from "@/features/explorer/TxDetailView";
-import { fetchNodeStatus, fetchTransaction, fetchTransactionGraph, fetchBlocks } from "@/lib/api";
+import { UtxoDetailView, UtxoData } from "@/features/utxos/UtxoDetailView";
+import { UtxoListView } from "@/features/utxos/UtxoListView";
+import {
+  fetchNodeStatus,
+  fetchTransaction,
+  fetchTransactionGraph,
+  fetchBlocks,
+  fetchUtxos,
+  fetchUtxo,
+} from "@/lib/api";
 import { Node, Edge } from "@xyflow/react";
 
 export default function DashboardPage() {
@@ -25,13 +34,15 @@ export default function DashboardPage() {
   const [nodeStatus, setNodeStatus] = useState<any>(null);
   const [recentBlocks, setRecentBlocks] = useState<any[]>([]);
   const [currentTx, setCurrentTx] = useState<TransactionDetailData | null>(null);
+  const [utxoList, setUtxoList] = useState<UtxoData[]>([]);
+  const [currentUtxo, setCurrentUtxo] = useState<UtxoData | null>(null);
   const [graphNodes, setGraphNodes] = useState<Node[]>([]);
   const [graphEdges, setGraphEdges] = useState<Edge[]>([]);
   const [graphDepth, setGraphDepth] = useState<number>(2);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load node status and recent blocks on mount
+  // Load node status, recent blocks, and active UTXOs on mount
   useEffect(() => {
     async function loadInitial() {
       try {
@@ -39,12 +50,29 @@ export default function DashboardPage() {
         setNodeStatus(node);
         const blocks = await fetchBlocks();
         setRecentBlocks(blocks);
+        const utxos = await fetchUtxos(50, 0);
+        setUtxoList(utxos);
       } catch (err: any) {
         console.warn("Could not connect to backend API:", err.message);
       }
     }
     loadInitial();
   }, []);
+
+  // Search or load outpoint
+  const loadUtxoData = async (txid: string, vout: number) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const u = await fetchUtxo(txid, vout);
+      setCurrentUtxo(u);
+      setActiveTab("utxos");
+    } catch (err: any) {
+      setError(err.message || "Failed to load UTXO");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Search or load transaction
   const loadTxData = async (txid: string, depth = graphDepth) => {
@@ -71,11 +99,17 @@ export default function DashboardPage() {
     if (!query) return;
 
     if (query.includes(":")) {
-      // Outpoint search
       const parts = query.split(":");
-      loadTxData(parts[0]);
+      const txid = parts[0].trim();
+      const vout = parseInt(parts[1].trim(), 10);
+      if (!isNaN(vout)) {
+        loadUtxoData(txid, vout);
+      } else {
+        loadTxData(txid);
+      }
     } else {
       loadTxData(query);
+      setActiveTab("tx");
     }
   };
 
@@ -297,7 +331,7 @@ export default function DashboardPage() {
               <TxDetailView
                 tx={currentTx}
                 onSelectTxid={(txid) => loadTxData(txid)}
-                onSelectOutpoint={(txid) => loadTxData(txid)}
+                onSelectOutpoint={(txid, vout) => loadUtxoData(txid, vout)}
               />
             ) : (
               <div className="bg-surface border border-border rounded-xl p-8 text-center min-h-[300px] flex flex-col items-center justify-center">
@@ -309,6 +343,40 @@ export default function DashboardPage() {
                   Enter a 64-character Transaction ID in the top search bar to inspect inputs, outputs, locktimes, and witness stacks.
                 </p>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab 3: UTXO Explorer & Lifecycles */}
+        {activeTab === "utxos" && (
+          <div className="space-y-4">
+            {currentUtxo ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => setCurrentUtxo(null)}
+                    className="px-3 py-1.5 rounded-lg bg-card hover:bg-card/80 border border-border text-xs font-mono text-gray-300 hover:text-white transition-colors"
+                  >
+                    ← Back to Active UTXO List
+                  </button>
+                </div>
+                <UtxoDetailView
+                  utxo={currentUtxo}
+                  onNavigateTxid={(txid) => {
+                    loadTxData(txid);
+                    setActiveTab("tx");
+                  }}
+                  onOpenInGraph={(txid) => {
+                    loadTxData(txid);
+                    setActiveTab("graph");
+                  }}
+                />
+              </div>
+            ) : (
+              <UtxoListView
+                utxos={utxoList}
+                onSelectUtxo={(utxo) => setCurrentUtxo(utxo)}
+              />
             )}
           </div>
         )}
