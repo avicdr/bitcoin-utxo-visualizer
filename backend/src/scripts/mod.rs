@@ -1,1 +1,1 @@
-// Bitcoin script disassembly and classification
+pub mod analyzer;

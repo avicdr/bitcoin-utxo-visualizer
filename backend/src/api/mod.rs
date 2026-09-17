@@ -3,6 +3,7 @@ pub mod error;
 pub mod graph;
 pub mod health;
 pub mod node;
+pub mod scripts;
 pub mod transactions;
 pub mod utxos;
 
@@ -45,5 +46,6 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/utxos", get(utxos::list_utxos))
         .route("/api/utxos/:txid/:vout", get(utxos::get_utxo))
         .route("/api/utxos/:txid/:vout/spend", get(utxos::get_utxo_spend))
+        .route("/api/scripts/decode", get(scripts::decode_script))
         .with_state(state.pool)
 }
