@@ -18,6 +18,7 @@ import { UtxoGraphView } from "@/features/graph/UtxoGraphView";
 import { TxDetailView, TransactionDetailData } from "@/features/explorer/TxDetailView";
 import { UtxoDetailView, UtxoData } from "@/features/utxos/UtxoDetailView";
 import { UtxoListView } from "@/features/utxos/UtxoListView";
+import { ValueFlowSankey } from "@/features/value-flow/ValueFlowSankey";
 import {
   fetchNodeStatus,
   fetchTransaction,
@@ -377,6 +378,25 @@ export default function DashboardPage() {
                 utxos={utxoList}
                 onSelectUtxo={(utxo) => setCurrentUtxo(utxo)}
               />
+            )}
+          </div>
+        )}
+
+        {/* Tab 4: Value Flow & Fees */}
+        {activeTab === "flow" && (
+          <div>
+            {currentTx ? (
+              <ValueFlowSankey tx={currentTx} />
+            ) : (
+              <div className="bg-surface border border-border rounded-xl p-8 text-center min-h-[300px] flex flex-col items-center justify-center">
+                <ArrowRight className="w-8 h-8 text-btc mb-3" />
+                <h3 className="text-sm font-semibold text-white mb-1">
+                  No Transaction Loaded for Value Flow Analysis
+                </h3>
+                <p className="text-xs text-gray-400 max-w-md">
+                  Load a transaction using the search bar to inspect the input-to-output satoshi distribution and miner fee calculation.
+                </p>
+              </div>
             )}
           </div>
         )}
