@@ -1,5 +1,6 @@
 pub mod blocks;
 pub mod error;
+pub mod graph;
 pub mod health;
 pub mod node;
 pub mod transactions;
@@ -36,6 +37,10 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/api/transactions/:txid",
             get(transactions::get_transaction),
+        )
+        .route(
+            "/api/transactions/:txid/graph",
+            get(graph::get_transaction_graph),
         )
         .route("/api/utxos", get(utxos::list_utxos))
         .route("/api/utxos/:txid/:vout", get(utxos::get_utxo))
