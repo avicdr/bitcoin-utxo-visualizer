@@ -1,0 +1,41 @@
+[package]
+name = "bitcoin-utxo-backend"
+version = "0.1.0"
+edition = "2021"
+authors = ["Bitcoin UTXO Visualizer Team"]
+description = "High-performance Bitcoin Core indexer, UTXO state engine, and graph API in Rust"
+
+[dependencies]
+tokio = { version = "1.38", features = ["full"] }
+axum = { version = "0.7", features = ["macros"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace", "timeout"] }
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "postgres",
+    "macros",
+    "chrono",
+    "json",
+    "migrate"
+] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bitcoin = { version = "0.32", features = ["serde"] }
+reqwest = { version = "0.12", features = ["json"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "1.0"
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+dotenvy = "0.15"
+futures = "0.3"
+async-stream = "0.3"
+tokio-stream = { version = "0.1", features = ["sync"] }
+
+[dev-dependencies]
+criterion = "0.5"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 10 12 16;
+    --foreground: 243 244 246;
+  }
+
+  body {
+    @apply bg-background text-gray-100 antialiased font-sans min-h-screen selection:bg-btc/30 selection:text-btc;
+  }
+}
+
+/* Custom scrollbars for technical data views */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0c10;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #252d3d;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #38455e;
+}
