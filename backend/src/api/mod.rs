@@ -3,6 +3,7 @@ pub mod error;
 pub mod health;
 pub mod node;
 pub mod transactions;
+pub mod utxos;
 
 use crate::config::AppConfig;
 use crate::rpc::client::BitcoinRpcClient;
@@ -36,5 +37,8 @@ pub fn create_router(state: AppState) -> Router {
             "/api/transactions/:txid",
             get(transactions::get_transaction),
         )
+        .route("/api/utxos", get(utxos::list_utxos))
+        .route("/api/utxos/:txid/:vout", get(utxos::get_utxo))
+        .route("/api/utxos/:txid/:vout/spend", get(utxos::get_utxo_spend))
         .with_state(state.pool)
 }

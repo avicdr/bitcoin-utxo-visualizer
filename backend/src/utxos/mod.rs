@@ -1,1 +1,2 @@
-// UTXO lifecycle and state tracking
+pub mod models;
+pub mod service;
