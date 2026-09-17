@@ -1,3 +1,4 @@
+pub mod addresses;
 pub mod blocks;
 pub mod error;
 pub mod graph;
@@ -47,5 +48,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/utxos/:txid/:vout", get(utxos::get_utxo))
         .route("/api/utxos/:txid/:vout/spend", get(utxos::get_utxo_spend))
         .route("/api/scripts/decode", get(scripts::decode_script))
+        .route(
+            "/api/addresses/:address",
+            get(addresses::get_address_analysis),
+        )
         .with_state(state.pool)
 }
