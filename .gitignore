@@ -1,0 +1,51 @@
+# CRITICAL: Local documentation is strictly local and MUST NEVER be committed
+/docs/
+docs/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Rust / Cargo
+/backend/target/
+**/target/
+Cargo.lock.bak
+**/*.rs.bk
+
+# Node.js / Frontend
+/frontend/node_modules/
+/frontend/.next/
+/frontend/out/
+/frontend/build/
+**/node_modules/
+.pnp
+.pnp.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS / IDE artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Bitcoin Core / Regtest runtime data
+/bitcoin/data/
+/bitcoin/wallets/
+*.dat
+*.log
+debug.log
+
+# Docker runtime volumes / temp
+/postgres_data/
+/pg_data/
