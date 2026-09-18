@@ -1,4 +1,5 @@
 pub mod addresses;
+pub mod analytics;
 pub mod blocks;
 pub mod error;
 pub mod events;
@@ -60,6 +61,22 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/api/events",
             get(events::sse_events_handler).with_state(state.broadcaster.clone()),
+        )
+        .route(
+            "/api/analytics/utxos",
+            get(analytics::get_utxo_overview_handler),
+        )
+        .route(
+            "/api/analytics/value-distribution",
+            get(analytics::get_value_distribution_handler),
+        )
+        .route(
+            "/api/analytics/age-distribution",
+            get(analytics::get_age_distribution_handler),
+        )
+        .route(
+            "/api/analytics/scripts",
+            get(analytics::get_script_distribution_handler),
         )
         .with_state(state.pool)
 }
