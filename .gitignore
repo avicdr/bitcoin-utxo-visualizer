@@ -21,6 +21,7 @@ Cargo.lock.bak
 /frontend/out/
 /frontend/build/
 **/node_modules/
+*.tsbuildinfo
 .pnp
 .pnp.js
 npm-debug.log*

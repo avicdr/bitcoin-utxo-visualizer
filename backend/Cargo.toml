@@ -36,6 +36,10 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 [dev-dependencies]
 criterion = "0.5"
 
+[[bench]]
+name = "utxo_bench"
+harness = false
+
 [profile.release]
 opt-level = 3
 lto = true
