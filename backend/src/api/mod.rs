@@ -49,6 +49,7 @@ pub fn create_router(state: AppState) -> Router {
             "/api/transactions/:txid/graph",
             get(graph::get_transaction_graph),
         )
+        .route("/api/transactions/graph/expand", get(graph::expand_node))
         .route("/api/utxos", get(utxos::list_utxos))
         .route("/api/utxos/:txid/:vout", get(utxos::get_utxo))
         .route("/api/utxos/:txid/:vout/spend", get(utxos::get_utxo_spend))

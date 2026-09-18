@@ -116,6 +116,22 @@ function CustomUtxoNode({ data }: { data: any }) {
   );
 }
 
+// Custom Cluster Node
+function CustomClusterNode({ data }: { data: any }) {
+  return (
+    <div className="bg-surface/90 border-2 border-dashed border-amber-500/70 rounded-xl p-3 shadow-2xl min-w-[180px] text-xs font-mono text-center cursor-pointer hover:border-amber-400 hover:bg-surface transition-all">
+      <Handle type="target" position={Position.Left} className="w-2.5 h-2.5 bg-amber-500 border-2 border-background" />
+      <div className="flex items-center justify-center gap-1.5 text-amber-400 font-semibold mb-1">
+        <Layers className="w-4 h-4" />
+        <span>Collapsed Cluster</span>
+      </div>
+      <div className="text-white font-bold">{data.label || `+${data.count} nodes`}</div>
+      <div className="text-[10px] text-gray-400 mt-1">Click to expand</div>
+      <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-amber-500 border-2 border-background" />
+    </div>
+  );
+}
+
 export function UtxoGraphView({
   nodes,
   edges,
@@ -127,6 +143,7 @@ export function UtxoGraphView({
     () => ({
       transaction: CustomTxNode,
       utxo: CustomUtxoNode,
+      cluster: CustomClusterNode,
     }),
     []
   );

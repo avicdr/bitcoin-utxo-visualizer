@@ -1,9 +1,12 @@
 use crate::graph::models::{
-    GraphEdge, GraphNode, GraphNodeData, GraphResponse, NodePosition, TxNodeData, UtxoNodeData,
+    ClusterNodeData, GraphEdge, GraphNode, GraphNodeData, GraphResponse, NodePosition, TxNodeData,
+    UtxoNodeData,
 };
 use anyhow::{anyhow, Result};
 use sqlx::PgPool;
 use std::collections::{HashSet, VecDeque};
+
+const MAX_GRAPH_NODES: usize = 100;
 
 pub async fn build_utxo_graph(
     pool: &PgPool,
@@ -70,6 +73,40 @@ pub async fn build_utxo_graph(
 
         let input_count = inputs.len();
         for (i, inp) in inputs.into_iter().enumerate() {
+            // Check node limit for ancestors
+            if nodes.len() >= MAX_GRAPH_NODES {
+                let remaining = input_count.saturating_sub(i);
+                if remaining > 0 {
+                    let cluster_id = format!("cluster:{}:inputs", curr_txid);
+                    if !seen_nodes.contains(&cluster_id) {
+                        seen_nodes.insert(cluster_id.clone());
+                        nodes.push(GraphNode {
+                            id: cluster_id.clone(),
+                            node_type: "cluster".to_string(),
+                            position: NodePosition {
+                                x: tx_x - 220.0,
+                                y: tx_y,
+                            },
+                            data: GraphNodeData::Cluster(ClusterNodeData {
+                                label: format!("+{} Ancestor Inputs", remaining),
+                                count: remaining,
+                                parent_id: curr_txid.clone(),
+                                cluster_type: "inputs".to_string(),
+                            }),
+                        });
+                        edges.push(GraphEdge {
+                            id: format!("e:{}->tx:{}", cluster_id, curr_txid),
+                            source: cluster_id,
+                            target: format!("tx:{}", curr_txid),
+                            label: format!("{} inputs", remaining),
+                            edge_type: "spend".to_string(),
+                            animated: false,
+                        });
+                    }
+                }
+                break;
+            }
+
             // Skip null coinbase outpoint
             if inp.prev_txid == "0000000000000000000000000000000000000000000000000000000000000000" {
                 continue;
@@ -205,6 +242,40 @@ pub async fn build_utxo_graph(
 
     let output_count = outputs.len();
     for (j, out) in outputs.into_iter().enumerate() {
+        // Check node limit for outputs
+        if nodes.len() >= MAX_GRAPH_NODES {
+            let remaining = output_count.saturating_sub(j);
+            if remaining > 0 {
+                let cluster_id = format!("cluster:{}:outputs", root_txid);
+                if !seen_nodes.contains(&cluster_id) {
+                    seen_nodes.insert(cluster_id.clone());
+                    nodes.push(GraphNode {
+                        id: cluster_id.clone(),
+                        node_type: "cluster".to_string(),
+                        position: NodePosition {
+                            x: 400.0 + 220.0,
+                            y: 300.0,
+                        },
+                        data: GraphNodeData::Cluster(ClusterNodeData {
+                            label: format!("+{} Descendant Outputs", remaining),
+                            count: remaining,
+                            parent_id: root_txid.to_string(),
+                            cluster_type: "outputs".to_string(),
+                        }),
+                    });
+                    edges.push(GraphEdge {
+                        id: format!("e:tx:{}->{}", root_txid, cluster_id),
+                        source: format!("tx:{}", root_txid),
+                        target: cluster_id,
+                        label: format!("{} outputs", remaining),
+                        edge_type: "output".to_string(),
+                        animated: false,
+                    });
+                }
+            }
+            break;
+        }
+
         let utxo_node_id = format!("utxo:{}:{}", root_txid, out.vout);
         let edge_id = format!("e:tx:{}->{}", root_txid, utxo_node_id);
 
@@ -301,9 +372,197 @@ pub async fn build_utxo_graph(
         }
     }
 
+    let total_count = nodes.len();
+    let is_collapsed =
+        total_count >= MAX_GRAPH_NODES || nodes.iter().any(|n| n.node_type == "cluster");
+
     Ok(GraphResponse {
         root_id: format!("tx:{}", root_txid),
         nodes,
         edges,
+        collapsed: is_collapsed,
+        total_count,
+    })
+}
+
+/// Expand a specific node on demand (lazy loading)
+pub async fn expand_graph_node(
+    pool: &PgPool,
+    node_id: &str,
+    direction: &str,
+) -> Result<GraphResponse> {
+    let mut nodes: Vec<GraphNode> = Vec::new();
+    let mut edges: Vec<GraphEdge> = Vec::new();
+    let mut seen_nodes: HashSet<String> = HashSet::new();
+    let mut seen_edges: HashSet<String> = HashSet::new();
+
+    if let Some(txid) = node_id.strip_prefix("tx:") {
+        let root_tx = sqlx::query!(
+            r#"
+            SELECT txid, block_height, vsize, is_coinbase, fee, fee_rate, status
+            FROM transactions
+            WHERE txid = $1
+            "#,
+            txid
+        )
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| anyhow!("Transaction {} not found", txid))?;
+
+        let tx_node_id = format!("tx:{}", root_tx.txid);
+        seen_nodes.insert(tx_node_id.clone());
+        nodes.push(GraphNode {
+            id: tx_node_id.clone(),
+            node_type: "transaction".to_string(),
+            position: NodePosition { x: 400.0, y: 300.0 },
+            data: GraphNodeData::Transaction(TxNodeData {
+                txid: root_tx.txid.clone(),
+                fee: root_tx.fee,
+                fee_rate: root_tx.fee_rate,
+                vsize: root_tx.vsize,
+                confirmed: root_tx.status == "confirmed",
+                is_coinbase: root_tx.is_coinbase,
+                block_height: root_tx.block_height,
+            }),
+        });
+
+        if direction == "ancestors" || direction == "both" {
+            let inputs = sqlx::query!(
+                r#"
+                SELECT vin, prev_txid, prev_vout, value
+                FROM transaction_inputs
+                WHERE txid = $1
+                ORDER BY vin ASC
+                "#,
+                txid
+            )
+            .fetch_all(pool)
+            .await?;
+
+            for (i, inp) in inputs.into_iter().enumerate() {
+                if inp.prev_txid
+                    == "0000000000000000000000000000000000000000000000000000000000000000"
+                {
+                    continue;
+                }
+                let utxo_node_id = format!("utxo:{}:{}", inp.prev_txid, inp.prev_vout);
+                let edge_id = format!("e:{}->tx:{}", utxo_node_id, txid);
+                let utxo_x = 400.0 - 220.0;
+                let utxo_y = 300.0 + (i as f64 * 100.0);
+
+                if !seen_nodes.contains(&utxo_node_id) {
+                    seen_nodes.insert(utxo_node_id.clone());
+                    if let Some(out) = sqlx::query!(
+                        r#"
+                        SELECT value, script_type, address, is_spent, spent_by_txid
+                        FROM transaction_outputs
+                        WHERE txid = $1 AND vout = $2
+                        "#,
+                        inp.prev_txid,
+                        inp.prev_vout
+                    )
+                    .fetch_optional(pool)
+                    .await?
+                    {
+                        nodes.push(GraphNode {
+                            id: utxo_node_id.clone(),
+                            node_type: "utxo".to_string(),
+                            position: NodePosition {
+                                x: utxo_x,
+                                y: utxo_y,
+                            },
+                            data: GraphNodeData::Utxo(UtxoNodeData {
+                                txid: inp.prev_txid.clone(),
+                                vout: inp.prev_vout,
+                                outpoint: format!("{}:{}", inp.prev_txid, inp.prev_vout),
+                                value_sats: out.value,
+                                value_btc: (out.value as f64) / 100_000_000.0,
+                                script_type: out.script_type,
+                                is_spent: out.is_spent,
+                                address: out.address,
+                                spent_by_txid: out.spent_by_txid,
+                            }),
+                        });
+                    }
+                }
+
+                if !seen_edges.contains(&edge_id) {
+                    seen_edges.insert(edge_id.clone());
+                    edges.push(GraphEdge {
+                        id: edge_id,
+                        source: utxo_node_id,
+                        target: format!("tx:{}", txid),
+                        label: format!("vin:{}", inp.vin),
+                        edge_type: "spend".to_string(),
+                        animated: false,
+                    });
+                }
+            }
+        }
+
+        if direction == "descendants" || direction == "both" {
+            let outputs = sqlx::query!(
+                r#"
+                SELECT vout, value, script_type, address, is_spent, spent_by_txid, spent_by_vin
+                FROM transaction_outputs
+                WHERE txid = $1
+                ORDER BY vout ASC
+                "#,
+                txid
+            )
+            .fetch_all(pool)
+            .await?;
+
+            for (j, out) in outputs.into_iter().enumerate() {
+                let utxo_node_id = format!("utxo:{}:{}", txid, out.vout);
+                let edge_id = format!("e:tx:{}->{}", txid, utxo_node_id);
+                let utxo_x = 400.0 + 220.0;
+                let utxo_y = 300.0 + (j as f64 * 100.0);
+
+                if !seen_nodes.contains(&utxo_node_id) {
+                    seen_nodes.insert(utxo_node_id.clone());
+                    nodes.push(GraphNode {
+                        id: utxo_node_id.clone(),
+                        node_type: "utxo".to_string(),
+                        position: NodePosition {
+                            x: utxo_x,
+                            y: utxo_y,
+                        },
+                        data: GraphNodeData::Utxo(UtxoNodeData {
+                            txid: txid.to_string(),
+                            vout: out.vout,
+                            outpoint: format!("{}:{}", txid, out.vout),
+                            value_sats: out.value,
+                            value_btc: (out.value as f64) / 100_000_000.0,
+                            script_type: out.script_type,
+                            is_spent: out.is_spent,
+                            address: out.address,
+                            spent_by_txid: out.spent_by_txid.clone(),
+                        }),
+                    });
+                }
+
+                if !seen_edges.contains(&edge_id) {
+                    seen_edges.insert(edge_id.clone());
+                    edges.push(GraphEdge {
+                        id: edge_id,
+                        source: format!("tx:{}", txid),
+                        target: utxo_node_id,
+                        label: format!("vout:{}", out.vout),
+                        edge_type: "output".to_string(),
+                        animated: false,
+                    });
+                }
+            }
+        }
+    }
+
+    let total = nodes.len();
+    Ok(GraphResponse {
+        root_id: node_id.to_string(),
+        nodes,
+        edges,
+        collapsed: false,
+        total_count: total,
     })
 }

@@ -5,13 +5,17 @@ pub struct GraphResponse {
     pub root_id: String,
     pub nodes: Vec<GraphNode>,
     pub edges: Vec<GraphEdge>,
+    #[serde(default)]
+    pub collapsed: bool,
+    #[serde(default)]
+    pub total_count: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphNode {
     pub id: String,
     #[serde(rename = "type")]
-    pub node_type: String, // "transaction" or "utxo"
+    pub node_type: String, // "transaction", "utxo", or "cluster"
     pub position: NodePosition,
     pub data: GraphNodeData,
 }
@@ -23,10 +27,19 @@ pub struct NodePosition {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClusterNodeData {
+    pub label: String,
+    pub count: usize,
+    pub parent_id: String,
+    pub cluster_type: String, // "inputs" or "outputs"
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GraphNodeData {
     Transaction(TxNodeData),
     Utxo(UtxoNodeData),
+    Cluster(ClusterNodeData),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

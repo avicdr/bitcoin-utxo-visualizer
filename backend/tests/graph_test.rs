@@ -52,6 +52,8 @@ fn test_graph_serialization_structure() {
         root_id: format!("tx:{}", root_txid),
         nodes: vec![tx_node, utxo_node],
         edges: vec![edge],
+        collapsed: false,
+        total_count: 2,
     };
 
     let json = serde_json::to_string(&graph).expect("Should serialize GraphResponse");
@@ -63,4 +65,36 @@ fn test_graph_serialization_structure() {
         serde_json::from_str(&json).expect("Should deserialize GraphResponse");
     assert_eq!(deserialized.nodes.len(), 2);
     assert_eq!(deserialized.edges.len(), 1);
+    assert!(!deserialized.collapsed);
+}
+
+#[test]
+fn test_cluster_node_serialization() {
+    use bitcoin_utxo_backend::graph::models::ClusterNodeData;
+
+    let cluster = GraphNode {
+        id: "cluster:tx123:inputs".to_string(),
+        node_type: "cluster".to_string(),
+        position: NodePosition { x: 50.0, y: 50.0 },
+        data: GraphNodeData::Cluster(ClusterNodeData {
+            label: "+120 Ancestor Inputs".to_string(),
+            count: 120,
+            parent_id: "tx123".to_string(),
+            cluster_type: "inputs".to_string(),
+        }),
+    };
+
+    let response = GraphResponse {
+        root_id: "tx123".to_string(),
+        nodes: vec![cluster],
+        edges: vec![],
+        collapsed: true,
+        total_count: 121,
+    };
+
+    let json = serde_json::to_string(&response).expect("Should serialize cluster GraphResponse");
+    assert!(json.contains("cluster:tx123:inputs"));
+    assert!(json.contains("+120 Ancestor Inputs"));
+    assert!(json.contains("\"collapsed\":true"));
+    assert!(json.contains("\"total_count\":121"));
 }

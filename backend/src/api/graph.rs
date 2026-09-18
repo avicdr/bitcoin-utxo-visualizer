@@ -28,3 +28,21 @@ pub async fn get_transaction_graph(
 
     Ok(Json(graph))
 }
+
+#[derive(Deserialize)]
+pub struct ExpandQuery {
+    pub node_id: String,
+    pub direction: Option<String>,
+}
+
+pub async fn expand_node(
+    State(pool): State<PgPool>,
+    Query(query): Query<ExpandQuery>,
+) -> Result<Json<GraphResponse>, ApiError> {
+    let direction = query.direction.unwrap_or_else(|| "both".to_string());
+    let graph = builder::expand_graph_node(&pool, &query.node_id, &direction)
+        .await
+        .map_err(|e| ApiError::NotFound(e.to_string()))?;
+
+    Ok(Json(graph))
+}
