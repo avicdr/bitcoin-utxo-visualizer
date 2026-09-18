@@ -13,12 +13,14 @@ import {
   ShieldCheck,
   RotateCw,
   Info,
+  TrendingUp,
 } from "lucide-react";
 import { UtxoGraphView } from "@/features/graph/UtxoGraphView";
 import { TxDetailView, TransactionDetailData } from "@/features/explorer/TxDetailView";
 import { UtxoDetailView, UtxoData } from "@/features/utxos/UtxoDetailView";
 import { UtxoListView } from "@/features/utxos/UtxoListView";
 import { ValueFlowSankey } from "@/features/value-flow/ValueFlowSankey";
+import { UtxoAnalyticsView } from "@/features/analytics/UtxoAnalyticsView";
 import {
   fetchNodeStatus,
   fetchTransaction,
@@ -31,7 +33,7 @@ import { Node, Edge } from "@xyflow/react";
 
 export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<"graph" | "tx" | "utxos" | "flow">("graph");
+  const [activeTab, setActiveTab] = useState<"graph" | "tx" | "utxos" | "flow" | "analytics">("graph");
   const [nodeStatus, setNodeStatus] = useState<any>(null);
   const [recentBlocks, setRecentBlocks] = useState<any[]>([]);
   const [currentTx, setCurrentTx] = useState<TransactionDetailData | null>(null);
@@ -42,6 +44,37 @@ export default function DashboardPage() {
   const [graphDepth, setGraphDepth] = useState<number>(2);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        if (e.key === "Escape") {
+          (e.target as HTMLElement).blur();
+        }
+        return;
+      }
+      if (e.key === "/") {
+        e.preventDefault();
+        document.getElementById("main-search-input")?.focus();
+      } else if (e.key === "1") {
+        setActiveTab("graph");
+      } else if (e.key === "2") {
+        setActiveTab("tx");
+      } else if (e.key === "3") {
+        setActiveTab("flow");
+      } else if (e.key === "4") {
+        setActiveTab("utxos");
+      } else if (e.key === "5") {
+        setActiveTab("analytics");
+      } else if (e.key === "Escape") {
+        setCurrentUtxo(null);
+        setError(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // Load node status, recent blocks, and active UTXOs on mount
   useEffect(() => {
@@ -138,15 +171,19 @@ export default function DashboardPage() {
 
           {/* Search bar */}
           <form onSubmit={handleSearch} className="flex-1 max-w-xl">
-            <div className="relative">
+            <div className="relative flex items-center">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
+                id="main-search-input"
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search TXID, Outpoint (txid:vout), Block Height, or Address..."
-                className="w-full bg-card border border-border rounded-lg pl-9 pr-4 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-btc/60 focus:ring-1 focus:ring-btc/40 font-mono transition-all"
+                className="w-full bg-card border border-border rounded-lg pl-9 pr-14 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-btc/60 focus:ring-1 focus:ring-btc/40 font-mono transition-all"
               />
+              <kbd className="absolute right-2.5 px-1.5 py-0.5 text-[10px] font-mono text-gray-400 bg-surface border border-border/80 rounded pointer-events-none">
+                /
+              </kbd>
             </div>
           </form>
 
@@ -222,30 +259,43 @@ export default function DashboardPage() {
 
       {/* Main Tab Navigation */}
       <div className="border-b border-border bg-surface">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-2">
-          {[
-            { id: "graph", label: "UTXO Graph (DAG)", icon: Activity },
-            { id: "tx", label: "Transaction Explorer", icon: GitCommit },
-            { id: "flow", label: "Value Flow & Fees", icon: ArrowRight },
-            { id: "utxos", label: "UTXO Set & Lifecycles", icon: Database },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 py-3 px-4 text-xs font-medium border-b-2 transition-colors ${
-                  active
-                    ? "border-btc text-white bg-card/60"
-                    : "border-transparent text-gray-400 hover:text-gray-200 hover:bg-card/20"
-                }`}
-              >
-                <Icon className={`w-4 h-4 ${active ? "text-btc" : "text-gray-400"}`} />
-                {tab.label}
-              </button>
-            );
-          })}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+          <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto">
+            {[
+              { id: "graph", label: "UTXO Graph (DAG)", icon: Activity, key: "1" },
+              { id: "tx", label: "Transaction Explorer", icon: GitCommit, key: "2" },
+              { id: "flow", label: "Value Flow & Fees", icon: ArrowRight, key: "3" },
+              { id: "utxos", label: "UTXO Set & Lifecycles", icon: Database, key: "4" },
+              { id: "analytics", label: "UTXO Analytics", icon: TrendingUp, key: "5" },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`flex items-center gap-2 py-3 px-3 sm:px-4 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
+                    active
+                      ? "border-btc text-white bg-card/60"
+                      : "border-transparent text-gray-400 hover:text-gray-200 hover:bg-card/20"
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 ${active ? "text-btc" : "text-gray-400"}`} />
+                  {tab.label}
+                  <span className="hidden md:inline-block px-1 py-0.2 text-[9px] font-mono text-gray-500 bg-background/50 border border-border/60 rounded">
+                    {tab.key}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="hidden lg:flex items-center gap-2 text-[10px] font-mono text-gray-400">
+            <span>Shortcuts:</span>
+            <kbd className="px-1 py-0.5 bg-card border border-border rounded text-gray-300">/</kbd> search
+            <kbd className="px-1 py-0.5 bg-card border border-border rounded text-gray-300">1-5</kbd> tabs
+            <kbd className="px-1 py-0.5 bg-card border border-border rounded text-gray-300">Esc</kbd> reset
+          </div>
         </div>
       </div>
 
@@ -398,6 +448,13 @@ export default function DashboardPage() {
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Tab 5: UTXO Analytics */}
+        {activeTab === "analytics" && (
+          <div>
+            <UtxoAnalyticsView />
           </div>
         )}
 

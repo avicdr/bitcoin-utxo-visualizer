@@ -44,3 +44,33 @@ export async function fetchUtxo(txid: string, vout: number) {
   if (!res.ok) throw new Error(`Failed to fetch UTXO ${txid}:${vout}: ${res.statusText}`);
   return res.json();
 }
+
+export async function fetchUtxoAnalytics() {
+  const res = await fetch(`${API_BASE}/api/analytics/utxos`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to fetch UTXO analytics: ${res.statusText}`);
+  return res.json();
+}
+
+export async function fetchValueDistribution() {
+  const res = await fetch(`${API_BASE}/api/analytics/value-distribution`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to fetch value distribution: ${res.statusText}`);
+  return res.json();
+}
+
+export async function fetchAgeDistribution() {
+  const res = await fetch(`${API_BASE}/api/analytics/age-distribution`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to fetch age distribution: ${res.statusText}`);
+  return res.json();
+}
+
+export async function fetchScriptDistribution() {
+  const res = await fetch(`${API_BASE}/api/analytics/scripts`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to fetch script distribution: ${res.statusText}`);
+  return res.json();
+}
+
+export async function fetchMempool() {
+  const res = await fetch(`${API_BASE}/api/mempool`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to fetch mempool state: ${res.statusText}`);
+  return res.json();
+}
