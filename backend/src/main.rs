@@ -46,17 +46,20 @@ async fn main() -> anyhow::Result<()> {
     })?;
     tracing::info!("Database schema up-to-date.");
 
-    // 4. Initialize Bitcoin Core RPC client
+    // 4. Initialize Bitcoin Core RPC client and Event Broadcaster
     let rpc_client = std::sync::Arc::new(rpc::client::BitcoinRpcClient::new(
         config.bitcoin_rpc_url.clone(),
         config.bitcoin_rpc_user.clone(),
         config.bitcoin_rpc_password.clone(),
     ));
 
+    let broadcaster = bitcoin_utxo_backend::events::broadcaster::EventBroadcaster::new(200);
+
     let state = api::AppState {
         pool: pool.clone(),
         rpc: rpc_client,
         config: config.clone(),
+        broadcaster,
     };
 
     // 5. Configure CORS layer for frontend communication

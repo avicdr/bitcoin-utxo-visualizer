@@ -1,6 +1,7 @@
 pub mod addresses;
 pub mod blocks;
 pub mod error;
+pub mod events;
 pub mod graph;
 pub mod health;
 pub mod mempool;
@@ -10,6 +11,7 @@ pub mod transactions;
 pub mod utxos;
 
 use crate::config::AppConfig;
+use crate::events::broadcaster::EventBroadcaster;
 use crate::rpc::client::BitcoinRpcClient;
 use axum::{routing::get, Router};
 use node::NodeApiState;
@@ -21,6 +23,7 @@ pub struct AppState {
     pub pool: PgPool,
     pub rpc: Arc<BitcoinRpcClient>,
     pub config: AppConfig,
+    pub broadcaster: EventBroadcaster,
 }
 
 pub fn create_router(state: AppState) -> Router {
@@ -54,5 +57,9 @@ pub fn create_router(state: AppState) -> Router {
             get(addresses::get_address_analysis),
         )
         .route("/api/mempool", get(mempool::get_mempool_state))
+        .route(
+            "/api/events",
+            get(events::sse_events_handler).with_state(state.broadcaster.clone()),
+        )
         .with_state(state.pool)
 }
