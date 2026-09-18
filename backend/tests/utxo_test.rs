@@ -46,3 +46,26 @@ fn test_outpoint_invalid_vout_number() {
     let res = Outpoint::from_str(non_numeric_vout);
     assert!(matches!(res, Err(OutpointParseError::InvalidVout(_))));
 }
+
+#[test]
+fn test_satoshi_limit_and_coin_math() {
+    // 21,000,000 BTC in Satoshis
+    let max_sats: i64 = 21_000_000 * 100_000_000;
+    assert_eq!(max_sats, 2_100_000_000_000_000);
+    assert!(max_sats < i64::MAX);
+
+    let btc_calc = (max_sats as f64) / 100_000_000.0;
+    assert!((btc_calc - 21_000_000.0).abs() < 1e-6);
+}
+
+#[test]
+fn test_coinbase_null_outpoint() {
+    let null_outpoint =
+        "0000000000000000000000000000000000000000000000000000000000000000:4294967295";
+    let parsed = Outpoint::from_str(null_outpoint).expect("Null coinbase outpoint must parse");
+    assert_eq!(parsed.vout, u32::MAX);
+    assert_eq!(
+        parsed.txid,
+        "0000000000000000000000000000000000000000000000000000000000000000"
+    );
+}

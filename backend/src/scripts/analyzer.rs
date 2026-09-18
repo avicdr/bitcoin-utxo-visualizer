@@ -42,6 +42,19 @@ pub struct ScriptAnalysis {
 pub fn analyze_script_bytes(bytes: &[u8]) -> ScriptAnalysis {
     let script_hex = hex::encode(bytes);
 
+    // 0. Empty script
+    if bytes.is_empty() {
+        return ScriptAnalysis {
+            script_hex,
+            script_asm: String::new(),
+            script_type: ScriptType::Unknown,
+            is_witness: false,
+            is_spendable: false,
+            required_signatures: None,
+            explanation: "Empty script.".to_string(),
+        };
+    }
+
     // 1. OP_RETURN Check (0x6a)
     if bytes.first() == Some(&0x6a) {
         let asm = disassemble(bytes);
@@ -136,7 +149,32 @@ pub fn analyze_script_bytes(bytes: &[u8]) -> ScriptAnalysis {
         };
     }
 
-    // 7. General Opcode Disassembly
+    // 7. Multisig: OP_M ... OP_N OP_CHECKMULTISIG
+    if bytes.len() >= 3 && bytes.last() == Some(&0xae) {
+        let first_byte = bytes[0];
+        let n_byte = bytes[bytes.len() - 2];
+        if (0x51..=0x60).contains(&first_byte) && (0x51..=0x60).contains(&n_byte) {
+            let m = (first_byte - 0x50) as usize;
+            let n = (n_byte - 0x50) as usize;
+            if m <= n {
+                let asm = disassemble(bytes);
+                return ScriptAnalysis {
+                    script_hex,
+                    script_asm: asm,
+                    script_type: ScriptType::Multisig,
+                    is_witness: false,
+                    is_spendable: true,
+                    required_signatures: Some(m),
+                    explanation: format!(
+                        "Bare Multisig ({}-of-{}). Unlocked by providing {} valid signatures matching the set of {} public keys.",
+                        m, n, m, n
+                    ),
+                };
+            }
+        }
+    }
+
+    // 8. General Opcode Disassembly
     let asm = disassemble(bytes);
     ScriptAnalysis {
         script_hex,
