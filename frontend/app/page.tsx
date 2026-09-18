@@ -86,6 +86,9 @@ export default function DashboardPage() {
         setRecentBlocks(blocks);
         const utxos = await fetchUtxos(50, 0);
         setUtxoList(utxos);
+        if (utxos.length > 0) {
+          loadTxData("1111111111111111111111111111111111111111111111111111111111111111");
+        }
       } catch (err: any) {
         console.warn("Could not connect to backend API:", err.message);
       }
