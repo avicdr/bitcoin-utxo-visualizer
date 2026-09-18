@@ -3,6 +3,7 @@ pub mod blocks;
 pub mod error;
 pub mod graph;
 pub mod health;
+pub mod mempool;
 pub mod node;
 pub mod scripts;
 pub mod transactions;
@@ -52,5 +53,6 @@ pub fn create_router(state: AppState) -> Router {
             "/api/addresses/:address",
             get(addresses::get_address_analysis),
         )
+        .route("/api/mempool", get(mempool::get_mempool_state))
         .with_state(state.pool)
 }
